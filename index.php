@@ -51,6 +51,7 @@
             position: relative;
             background: #ffffff;
             transition: transform 0.3s, box-shadow 0.3s;
+            cursor: pointer;
         }
         .card:hover {
             transform: translateY(-5px);
@@ -88,6 +89,11 @@
         .footer-text {
             margin: 0;
         }
+        .modal-content {
+            width: 100%;
+            max-width: 600px;
+            margin: auto;
+        }
     </style>
 </head>
 <body>
@@ -120,17 +126,43 @@
         $result = $conn->query($sql);
         if ($result->num_rows > 0) {
             while ($row = $result->fetch_assoc()) {
-                echo '<div class="col-md-4 profile-card" data-name="' . htmlspecialchars($row['name']) . '" data-card="' . htmlspecialchars($row['card']) . '" data-phone="' . htmlspecialchars($row['phone']) . '">';
-                echo '<div class="card">';
+                // Fetch total loan amount for each member
+                $member_id = $row['id'];
+                $loan_sql = "SELECT SUM(loan_value) AS total_loan FROM loan WHERE member_id = $member_id";
+                $loan_result = $conn->query($loan_sql);
+                $loan_row = $loan_result->fetch_assoc();
+                $total_loan = $loan_row['total_loan'] ?: 0;
+
+                echo '<div class="col-md-4 profile-card" data-id="' . $row['id'] . '" data-name="' . htmlspecialchars($row['name']) . '" data-card="' . htmlspecialchars($row['card']) . '">';
+                echo '<div class="card" data-bs-toggle="modal" data-bs-target="#loanModal" data-id="' . $row['id'] . '">';
                 echo '<div class="card-body">';
                 echo '<h5 class="card-title">' . htmlspecialchars($row['name']) . '</h5>';
-                echo '<p class="card-text">Loan Amount: Rs. ' . htmlspecialchars($row['loan_amount']) . '</p>';
+                echo '<p class="card-text">Card: ' . htmlspecialchars($row['card']) . '</p>';
+                echo '<p class="card-text">Loan Amount: Rs. ' . number_format($total_loan, 2) . '</p>';
                 echo '</div></div></div>';
             }
         } else {
             echo '<p>No members found.</p>';
         }
         ?>
+    </div>
+</div>
+
+<!-- Modal for loan details -->
+<div class="modal fade" id="loanModal" tabindex="-1" aria-labelledby="loanModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="loanModalLabel">Loan Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="loanDetailsContent">
+                <!-- Loan details will be dynamically loaded here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -146,8 +178,20 @@
             $('.profile-card').filter(function () {
                 let name = $(this).data('name').toLowerCase();
                 let card = $(this).data('card').toLowerCase();
-                let phone = $(this).data('phone').toLowerCase();
-                $(this).toggle(name.includes(value) || card.includes(value) || phone.includes(value));
+                $(this).toggle(name.includes(value) || card.includes(value));
+            });
+        });
+
+        // When a profile card is clicked, fetch and show the loan details
+        $('#loanModal').on('show.bs.modal', function (e) {
+            var memberId = $(e.relatedTarget).data('id');
+            $.ajax({
+                url: 'get_loan_details.php',
+                method: 'GET',
+                data: { member_id: memberId },
+                success: function (response) {
+                    $('#loanDetailsContent').html(response);
+                }
             });
         });
     });

@@ -1,15 +1,11 @@
 <?php
 session_start();
-
-// Use the old logic for verifying the super admin
-if (!isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'super_admin') {
+if (!isset($_SESSION['super_admin']) || $_SESSION['super_admin'] !== true) {
     header('Location: super_admin_login.php');
     exit;
 }
-
 include 'db_connect.php';
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -21,25 +17,6 @@ include 'db_connect.php';
     <style>
         body { background-color: #000000; color: #00ff00; font-family: 'Courier New', monospace; }
         .navbar { background-color: #00ff00; color: #000000; }
-        .navbar-nav .nav-item .dropdown-menu {
-            background-color: #00ff00;
-        }
-        .navbar-nav .nav-item .dropdown-item {
-            color: #000000;
-        }
-        .navbar-nav .nav-item .dropdown-item:hover {
-            background-color: #0056b3;
-        }
-        .search-bar { margin-bottom: 30px; }
-        .search-input {
-            width: 100%;
-            padding: 10px;
-            border-radius: 25px;
-            border: 1px solid #00ff00;
-            outline: none;
-            background: #000000;
-            color: #00ff00;
-        }
         .card {
             background-color: #0d0d0d;
             border: 1px solid #00ff00;
@@ -47,7 +24,6 @@ include 'db_connect.php';
             color: #00ff00;
             margin-bottom: 20px;
         }
-        .card:hover { background-color: #111111; }
         .popup {
             display: none;
             position: fixed;
@@ -60,6 +36,14 @@ include 'db_connect.php';
             border: 2px solid #00ff00;
             border-radius: 10px;
             z-index: 9999;
+            max-width: 90%;
+            width: 400px;
+        }
+        .form-control { background-color: #000000; color: #00ff00; border: 1px solid #00ff00; }
+        .form-control:focus { border-color: #00ff00; box-shadow: none; }
+        .btn { border-radius: 20px; }
+        @media (max-width: 576px) {
+            .popup { width: 100%; }
         }
     </style>
 </head>
@@ -84,25 +68,37 @@ include 'db_connect.php';
 </nav>
 
 <div class="container mt-5">
-    <div class="search-bar">
-        <input type="text" id="searchInput" class="search-input" placeholder="Search profiles">
-    </div>
+    <h3 class="mb-4">Members and Loans</h3>
     <div class="row" id="profileContainer">
         <?php
-        // Fetch all loan entries from the database
-        $sql = "SELECT id, name, card, phone, loan_amount FROM members";
+        $sql = "SELECT members.id AS member_id, members.name, members.card, members.phone, 
+                       loan.id AS loan_id, loan.loan_value, loan.loan_description, loan.loan_date, loan.payment
+                FROM members
+                LEFT JOIN loan ON members.id = loan.member_id";
         $result = $conn->query($sql);
-
         if ($result->num_rows > 0) {
             while ($row = $result->fetch_assoc()) {
-                echo '<div class="col-md-4 profile-card" data-id="' . htmlspecialchars($row['id']) . '" data-name="' . htmlspecialchars($row['name']) . '" data-card="' . htmlspecialchars($row['card']) . '" data-phone="' . htmlspecialchars($row['phone']) . '" data-loan="' . htmlspecialchars($row['loan_amount']) . '">';
-                echo '<div class="card p-3">';
-                echo '<h5>' . htmlspecialchars($row['name']) . '</h5>';
-                echo '<p>Loan Amount: Rs. ' . htmlspecialchars($row['loan_amount']) . '</p>';
-                echo '</div></div>';
+                echo '<div class="col-md-6 col-lg-4 mb-3 profile-card" 
+                        data-member-id="' . $row['member_id'] . '" 
+                        data-name="' . $row['name'] . '" 
+                        data-card="' . $row['card'] . '" 
+                        data-phone="' . $row['phone'] . '" 
+                        data-loan-id="' . $row['loan_id'] . '" 
+                        data-loan-value="' . $row['loan_value'] . '" 
+                        data-loan-description="' . $row['loan_description'] . '" 
+                        data-loan-date="' . $row['loan_date'] . '" 
+                        data-payment="' . $row['payment'] . '">
+                        <div class="card p-3">
+                            <h5>' . htmlspecialchars($row['name']) . '</h5>
+                            <p>Card: ' . htmlspecialchars($row['card']) . '</p>
+                            <p>Phone: ' . htmlspecialchars($row['phone']) . '</p>
+                            <p>Loan Amount: Rs. ' . htmlspecialchars($row['loan_value']) . '</p>
+                            <p>Payment: ' . ($row['payment'] ? 'Paid' : 'Pending') . '</p>
+                        </div>
+                    </div>';
             }
         } else {
-            echo '<p>No profiles found.</p>';
+            echo '<p>No data found.</p>';
         }
         ?>
     </div>
@@ -110,8 +106,9 @@ include 'db_connect.php';
 
 <div class="popup" id="editPopup">
     <form id="editForm">
-        <h5>Edit User Details</h5>
-        <input type="hidden" id="editId">
+        <h5>Edit Details</h5>
+        <input type="hidden" id="editMemberId">
+        <input type="hidden" id="editLoanId">
         <div class="mb-3">
             <label>Name:</label>
             <input type="text" id="editName" class="form-control">
@@ -126,7 +123,22 @@ include 'db_connect.php';
         </div>
         <div class="mb-3">
             <label>Loan Amount:</label>
-            <input type="number" id="editLoan" class="form-control">
+            <input type="number" id="editLoanValue" class="form-control">
+        </div>
+        <div class="mb-3">
+            <label>Loan Description:</label>
+            <textarea id="editLoanDescription" class="form-control"></textarea>
+        </div>
+        <div class="mb-3">
+            <label>Loan Date:</label>
+            <input type="date" id="editLoanDate" class="form-control">
+        </div>
+        <div class="mb-3">
+            <label>Payment:</label>
+            <select id="editPayment" class="form-control">
+                <option value="0">Pending</option>
+                <option value="1">Paid</option>
+            </select>
         </div>
         <button type="button" class="btn btn-success" id="saveChanges">Save</button>
         <button type="button" class="btn btn-danger" id="closePopup">Cancel</button>
@@ -136,41 +148,36 @@ include 'db_connect.php';
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     $(document).ready(function () {
-        // Search functionality
-        $('#searchInput').on('input', function () {
-            let value = $(this).val().toLowerCase();
-            $('.profile-card').filter(function () {
-                let name = $(this).data('name').toLowerCase();
-                let card = $(this).data('card').toLowerCase();
-                let phone = $(this).data('phone').toLowerCase();
-                $(this).toggle(name.includes(value) || card.includes(value) || phone.includes(value));
-            });
-        });
-
-        // Open popup on click
         $('.profile-card').click(function () {
-            $('#editId').val($(this).data('id'));
+            $('#editMemberId').val($(this).data('member-id'));
+            $('#editLoanId').val($(this).data('loan-id'));
             $('#editName').val($(this).data('name'));
             $('#editCard').val($(this).data('card'));
             $('#editPhone').val($(this).data('phone'));
-            $('#editLoan').val($(this).data('loan'));
+            $('#editLoanValue').val($(this).data('loan-value'));
+            $('#editLoanDescription').val($(this).data('loan-description'));
+            $('#editLoanDate').val($(this).data('loan-date'));
+            $('#editPayment').val($(this).data('payment'));
             $('#editPopup').show();
         });
 
-        // Close popup
         $('#closePopup').click(function () {
             $('#editPopup').hide();
         });
 
-        // Save changes
         $('#saveChanges').click(function () {
-            let id = $('#editId').val();
-            let name = $('#editName').val();
-            let card = $('#editCard').val();
-            let phone = $('#editPhone').val();
-            let loan = $('#editLoan').val();
-
-            $.post('update_member.php', { id, name, card, phone, loan }, function (response) {
+            let data = {
+                member_id: $('#editMemberId').val(),
+                loan_id: $('#editLoanId').val(),
+                name: $('#editName').val(),
+                card: $('#editCard').val(),
+                phone: $('#editPhone').val(),
+                loan_value: $('#editLoanValue').val(),
+                loan_description: $('#editLoanDescription').val(),
+                loan_date: $('#editLoanDate').val(),
+                payment: $('#editPayment').val()
+            };
+            $.post('update_member_loan.php', data, function (response) {
                 alert(response);
                 location.reload();
             });
