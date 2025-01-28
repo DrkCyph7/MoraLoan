@@ -1,3 +1,30 @@
 ,3%(eQXB1ZB,X_^B
 
 4579953_ MoraLoanDB
+
+
+-- Create the database
+CREATE DATABASE IF NOT EXISTS moraloan;
+
+-- Use the created database
+USE moraloan;
+
+-- Create the members table
+CREATE TABLE IF NOT EXISTS members (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    card VARCHAR(50) NOT NULL,
+    phone VARCHAR(15) NULL
+);
+
+-- Create the loan table with the new 'loan_description', 'loan_date', 'created_at', and 'payment' columns
+CREATE TABLE IF NOT EXISTS loan (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    member_id INT NOT NULL,
+    loan_value DECIMAL(10, 2) NOT NULL,
+    loan_description TEXT NULL,  -- Added loan description
+    loan_date DATE NOT NULL,  -- Date selected by user for loan issuance
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,  -- Automatically store current date and time in GMT+5:30
+    payment TINYINT(1) DEFAULT 0,  -- Added payment column with default value 0
+    FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE
+);

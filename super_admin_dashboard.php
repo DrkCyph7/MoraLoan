@@ -1,11 +1,15 @@
 <?php
 session_start();
-if (!isset($_SESSION['super_admin']) || $_SESSION['super_admin'] !== true) {
+
+// Use the old logic for verifying the super admin
+if (!isset($_SESSION['user_type']) || $_SESSION['user_type'] !== 'super_admin') {
     header('Location: super_admin_login.php');
     exit;
 }
+
 include 'db_connect.php';
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -85,8 +89,10 @@ include 'db_connect.php';
     </div>
     <div class="row" id="profileContainer">
         <?php
-        $sql = "SELECT * FROM members";
+        // Fetch all loan entries from the database
+        $sql = "SELECT id, name, card, phone, loan_amount FROM members";
         $result = $conn->query($sql);
+
         if ($result->num_rows > 0) {
             while ($row = $result->fetch_assoc()) {
                 echo '<div class="col-md-4 profile-card" data-id="' . htmlspecialchars($row['id']) . '" data-name="' . htmlspecialchars($row['name']) . '" data-card="' . htmlspecialchars($row['card']) . '" data-phone="' . htmlspecialchars($row['phone']) . '" data-loan="' . htmlspecialchars($row['loan_amount']) . '">';
